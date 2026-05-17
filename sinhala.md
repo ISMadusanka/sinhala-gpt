@@ -168,6 +168,7 @@ If training was interrupted, resume from the last saved checkpoint:
 
 ```bash
 python train.py config/train_sinhala.py --init_from=resume
+
 ```
 
 ---
@@ -205,6 +206,8 @@ Fine-tunes the pre-trained model on instruction data with lower learning rate an
 
 ```bash
 python train.py config/finetune_sinhala.py
+python train.py config/finetune_sinhala.py --init_from=scratch
+
 ```
 
 **Fine-tuning config differences vs pre-training:**
