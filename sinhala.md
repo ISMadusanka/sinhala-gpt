@@ -172,27 +172,121 @@ python train.py config/train_sinhala.py --init_from=resume
 
 ---
 
+## Instruction Fine-tuning (Step 5-7)
+
+After pre-training, you can fine-tune the model to follow instructions using the Aya dataset.
+
+### Step 5: Prepare Instruction Data
+
+Downloads the Aya dataset, filters Sinhala examples, formats them as instruction pairs, and prepares the pre-trained checkpoint for fine-tuning.
+
+```bash
+python data/sinhala_instruct/prepare.py
+```
+
+**Dataset:** `CohereLabs/aya_dataset` (~14,524 Sinhala instruction-response pairs)
+
+**Instruction format used during training:**
+```
+<|user|> {question} <|assistant|> {answer} <|end|>
+```
+
+**Output files:**
+- `data/sinhala_instruct/train.bin` — Training data (95%)
+- `data/sinhala_instruct/val.bin` — Validation data (5%)
+- `data/sinhala_instruct/meta.pkl` — Metadata
+- `out-sinhala-instruct/ckpt.pt` — Pre-trained checkpoint prepared for fine-tuning
+
+---
+
+### Step 6: Fine-tune the Model
+
+Fine-tunes the pre-trained model on instruction data with lower learning rate and dropout.
+
+```bash
+python train.py config/finetune_sinhala.py
+```
+
+**Fine-tuning config differences vs pre-training:**
+
+| Config | Pre-training | Fine-tuning |
+|--------|-------------|-------------|
+| Learning rate | 6e-4 | 1e-4 |
+| Dropout | 0.0 | 0.1 |
+| Max iterations | 100,000 | 5,000 |
+| Batch size | 64 | 32 |
+| Eval interval | 1,000 | 250 |
+| Save checkpoint | Always | Only when val loss improves |
+
+**Output:** `out-sinhala-instruct/ckpt.pt`
+
+---
+
+### Step 7: Run Instruction Inference
+
+Generate responses to Sinhala questions using the fine-tuned model.
+
+```bash
+python inference_instruct.py --prompt="ශ්‍රී ලංකාව ගැන විස්තර කරන්න."
+```
+
+**Interactive chat mode:**
+```bash
+python inference_instruct.py --interactive
+```
+
+**All arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--prompt` | `ශ්‍රී ලංකාව ගැන විස්තර කරන්න.` | Question in Sinhala |
+| `--max_tokens` | 300 | Max tokens to generate |
+| `--temperature` | 0.7 | Sampling temperature |
+| `--top_k` | 40 | Top-k sampling |
+| `--num_samples` | 1 | Number of responses |
+| `--checkpoint_dir` | `out-sinhala-instruct` | Checkpoint directory |
+| `--interactive` | (flag) | Run in interactive chat mode |
+
+---
+
+### Run All Fine-tuning Steps at Once
+
+```bash
+python run_pipeline.py --steps=5,6,7
+```
+
+---
+
 ## Project Structure
 
 ```
 sinhala-gpt/
 ├── model.py                         # GPT model definition (unchanged)
 ├── train.py                         # Training loop (unchanged)
-├── run_pipeline.py                  # Full pipeline runner
-├── inference.py                     # Inference script
+├── run_pipeline.py                  # Full pipeline runner (steps 1-7)
+├── inference.py                     # Inference script (pre-trained)
+├── inference_instruct.py            # Inference script (fine-tuned)
 ├── config/
-│   └── train_sinhala.py             # Sinhala training config
+│   ├── train_sinhala.py             # Pre-training config
+│   └── finetune_sinhala.py          # Fine-tuning config
 ├── data/
-│   └── sinhala/
-│       ├── train_tokenizer.py       # Tokenizer training script
-│       ├── prepare.py               # Data preparation script
-│       ├── sinhala_tokenizer.model  # (generated) Tokenizer model
-│       ├── sinhala_tokenizer.vocab  # (generated) Tokenizer vocab
-│       ├── train.bin                # (generated) Training data
-│       ├── val.bin                  # (generated) Validation data
+│   ├── sinhala/
+│   │   ├── train_tokenizer.py       # Tokenizer training script
+│   │   ├── prepare.py               # Pre-training data preparation
+│   │   ├── sinhala_tokenizer.model  # (generated) Tokenizer model
+│   │   ├── sinhala_tokenizer.vocab  # (generated) Tokenizer vocab
+│   │   ├── train.bin                # (generated) Pre-training data
+│   │   ├── val.bin                  # (generated) Validation data
+│   │   └── meta.pkl                 # (generated) Metadata
+│   └── sinhala_instruct/
+│       ├── prepare.py               # Instruction data preparation
+│       ├── train.bin                # (generated) Instruction train data
+│       ├── val.bin                  # (generated) Instruction val data
 │       └── meta.pkl                 # (generated) Metadata
-└── out-sinhala/
-    └── ckpt.pt                      # (generated) Model checkpoint
+├── out-sinhala/
+│   └── ckpt.pt                      # (generated) Pre-trained checkpoint
+└── out-sinhala-instruct/
+    └── ckpt.pt                      # (generated) Fine-tuned checkpoint
 ```
 
 ---
@@ -205,7 +299,7 @@ sinhala-gpt/
 - The model is only ~17M parameters, so it fits comfortably on any modern GPU
 
 
-##NOTES
+## NOTES
 ~10.0: Completely random guessing (Untrained).
 ~7.0 - 8.0: The model is starting to learn basic character/token frequencies (e.g., space is common, rare characters are rare).
 ~4.0 - 5.0: The model has learned basic Sinhala word structures and common short words, but sentences will still look like gibberish.

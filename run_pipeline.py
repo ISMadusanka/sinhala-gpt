@@ -5,12 +5,16 @@ Orchestrates the entire pipeline:
   Step 1: Train SentencePiece tokenizer
   Step 2: Prepare data (tokenize + create binary files)
   Step 3: Train the GPT model
-  Step 4: Run inference
+  Step 4: Run inference (pre-trained model)
+  Step 5: Prepare instruction fine-tuning data (Aya dataset)
+  Step 6: Fine-tune model on instruction data
+  Step 7: Run instruction inference
 
 Usage:
-    python run_pipeline.py                  # Run all steps
+    python run_pipeline.py                  # Run steps 1-4 (pre-training)
     python run_pipeline.py --start_step=3   # Resume from step 3
     python run_pipeline.py --steps=1,2      # Run only specific steps
+    python run_pipeline.py --steps=5,6,7    # Run only fine-tuning steps
 """
 
 import os
@@ -74,7 +78,7 @@ def run_step(step_num, name, cmd, cwd=None):
 def main():
     parser = argparse.ArgumentParser(description='Sinhala GPT Training Pipeline')
     parser.add_argument('--start_step', type=int, default=1,
-                        help='Start from this step (1-4)')
+                        help='Start from this step (1-7)')
     parser.add_argument('--steps', type=str, default=None,
                         help='Comma-separated list of steps to run (e.g., "1,2,3")')
     parser.add_argument('--config', type=str, default='config/train_sinhala.py',
@@ -87,7 +91,7 @@ def main():
     if args.steps:
         steps_to_run = set(int(s.strip()) for s in args.steps.split(','))
     else:
-        steps_to_run = set(range(args.start_step, 5))  # steps 1-4
+        steps_to_run = set(range(args.start_step, 8))  # steps 1-7
 
     logger.info("=" * 70)
     logger.info("SINHALA GPT — FULL TRAINING PIPELINE")
@@ -175,6 +179,59 @@ def main():
         step_times[4] = elapsed
 
     # -------------------------------------------------------------------------
+    # Step 5: Prepare Instruction Fine-tuning Data
+    # -------------------------------------------------------------------------
+    if 5 in steps_to_run:
+        elapsed = run_step(
+            step_num=5,
+            name="PREPARE INSTRUCTION DATA",
+            cmd=[python, os.path.join('data', 'sinhala_instruct', 'prepare.py')],
+        )
+        step_times[5] = elapsed
+
+        # Verify outputs
+        for fname in ['train.bin', 'val.bin', 'meta.pkl']:
+            fpath = os.path.join(PROJECT_ROOT, 'data', 'sinhala_instruct', fname)
+            if not os.path.exists(fpath):
+                logger.error(f"Missing expected output: {fpath}")
+                sys.exit(1)
+            size = os.path.getsize(fpath)
+            logger.info(f"✓ {fname} verified ({size / 1024:.1f} KB)")
+
+    # -------------------------------------------------------------------------
+    # Step 6: Fine-tune Model
+    # -------------------------------------------------------------------------
+    if 6 in steps_to_run:
+        elapsed = run_step(
+            step_num=6,
+            name="FINE-TUNE MODEL",
+            cmd=[python, 'train.py', 'config/finetune_sinhala.py'],
+        )
+        step_times[6] = elapsed
+
+        # Verify checkpoint
+        ckpt_path = os.path.join(PROJECT_ROOT, 'out-sinhala-instruct', 'ckpt.pt')
+        if os.path.exists(ckpt_path):
+            size = os.path.getsize(ckpt_path)
+            logger.info(f"✓ Fine-tuned checkpoint verified: {ckpt_path} ({size / (1024*1024):.1f} MB)")
+
+    # -------------------------------------------------------------------------
+    # Step 7: Run Instruction Inference
+    # -------------------------------------------------------------------------
+    if 7 in steps_to_run:
+        elapsed = run_step(
+            step_num=7,
+            name="RUN INSTRUCTION INFERENCE",
+            cmd=[
+                python, 'inference_instruct.py',
+                f'--prompt={args.inference_prompt}',
+                '--num_samples=1',
+                '--max_tokens=300',
+            ],
+        )
+        step_times[7] = elapsed
+
+    # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
     total_elapsed = time.time() - total_start
@@ -184,8 +241,12 @@ def main():
     logger.info("PIPELINE COMPLETE")
     logger.info("=" * 70)
 
+    step_names = {
+        1: 'Train Tokenizer', 2: 'Prepare Data', 3: 'Train Model',
+        4: 'Inference', 5: 'Prepare Instruct Data', 6: 'Fine-tune',
+        7: 'Instruct Inference',
+    }
     for step_num in sorted(step_times.keys()):
-        step_names = {1: 'Train Tokenizer', 2: 'Prepare Data', 3: 'Train Model', 4: 'Inference'}
         logger.info(f"  Step {step_num} ({step_names[step_num]}): {step_times[step_num]:.1f}s ({step_times[step_num]/60:.1f} min)")
 
     logger.info(f"  Total: {total_elapsed:.1f}s ({total_elapsed/3600:.1f} hours)")
