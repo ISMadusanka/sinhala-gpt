@@ -203,3 +203,12 @@ sinhala-gpt/
 - **Recommended:** 1 GPU with 16GB+ VRAM (A100, H100, RTX 3090/4090)
 - Training uses `bfloat16` mixed precision and `torch.compile` for maximum speed
 - The model is only ~17M parameters, so it fits comfortably on any modern GPU
+
+
+##NOTES
+~10.0: Completely random guessing (Untrained).
+~7.0 - 8.0: The model is starting to learn basic character/token frequencies (e.g., space is common, rare characters are rare).
+~4.0 - 5.0: The model has learned basic Sinhala word structures and common short words, but sentences will still look like gibberish.
+~3.0 - 3.5: Sentences start to look like real Sinhala. The grammar might be slightly broken, but it's generating recognizable phrases.
+~2.5 - 2.8: This is typically considered a good, usable model for this size. It will generate coherent Sinhala sentences, have basic grammar, and understand context reasonably well. (For reference, the original English GPT-2 124M model achieved a loss of about 3.11, and down to 2.85 on similar datasets).
+< 2.0: The model is exceptionally good at predicting the exact text (though if it gets too low, like < 1.0, it might mean the model is just memorizing the training data, known as overfitting).
